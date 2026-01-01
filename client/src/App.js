@@ -4,11 +4,15 @@ import Dashboard from './components/Dashboard';
 import BudgetAllocation from './components/BudgetAllocation';
 import ExpenseManager from './components/ExpenseManager';
 import SegmentManager from './components/SegmentManager';
+import Login from './components/Login';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -16,12 +20,67 @@ function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    fetchSegments();
+    checkAuthentication();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchSegments();
+    }
+  }, [isAuthenticated]);
+
+  const checkAuthentication = async () => {
+    const token = localStorage.getItem('budgetToken');
+    
+    if (!token) {
+      setIsAuthenticated(false);
+      setIsCheckingAuth(false);
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_URL}/verify-token`, { token });
+      if (response.data.valid) {
+        setIsAuthenticated(true);
+        setCurrentUser(response.data.user);
+      } else {
+        localStorage.removeItem('budgetToken');
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('budgetToken');
+      setIsAuthenticated(false);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('budgetToken');
+      await axios.post(`${API_URL}/logout`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    
+    // Clear all localStorage and force full reload
+    localStorage.clear();
+    window.location.reload();
+  };
 
   const fetchSegments = async () => {
     try {
-      const response = await axios.get(`${API_URL}/segments`);
+      const token = localStorage.getItem('budgetToken');
+      const response = await axios.get(`${API_URL}/segments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setSegments(response.data);
     } catch (error) {
       console.error('Error fetching segments:', error);
@@ -32,6 +91,29 @@ function App() {
     setRefreshTrigger(prev => prev + 1);
     fetchSegments();
   };
+
+  // Show loading while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="App">
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          fontSize: '1.5rem',
+          color: 'white'
+        }}>
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -57,7 +139,12 @@ function App() {
   return (
     <div className="App">
       <header className="app-header">
-        <h1>💰 Budget Tracker</h1>
+        <div>
+          <h1>💰 Budget Tracker</h1>
+          {currentUser && (
+            <p className="user-greeting">Welcome, {currentUser.displayName}!</p>
+          )}
+        </div>
         <div className="header-controls">
           <select 
             value={selectedMonth} 
@@ -76,6 +163,9 @@ function App() {
             min="2000"
             max="2100"
           />
+          <button onClick={handleLogout} className="logout-btn" title="Logout">
+            🚪 Logout
+          </button>
         </div>
       </header>
 

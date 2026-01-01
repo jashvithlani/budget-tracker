@@ -20,6 +20,13 @@
   margin: 0;
 }
 
+.user-greeting {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 5px 0 0 0;
+  font-weight: 500;
+}
+
 .header-controls {
   display: flex;
   gap: 10px;
@@ -47,6 +54,25 @@
 
 .year-input {
   width: 100px;
+}
+
+.logout-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #f44336;
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  margin-left: 10px;
+}
+
+.logout-btn:hover {
+  background: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.4);
 }
 
 .app-nav {

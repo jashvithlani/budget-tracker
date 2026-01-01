@@ -17,11 +17,14 @@ function Dashboard({ year, month, refreshTrigger }) {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       if (viewType === 'monthly') {
-        const response = await axios.get(`${API_URL}/dashboard/month/${year}/${month}`);
+        const response = await axios.get(`${API_URL}/dashboard/month/${year}/${month}`, { headers });
         setMonthlyData(response.data);
       } else {
-        const response = await axios.get(`${API_URL}/dashboard/year/${year}`);
+        const response = await axios.get(`${API_URL}/dashboard/year/${year}`, { headers });
         setYearlyData(response.data);
       }
     } catch (error) {

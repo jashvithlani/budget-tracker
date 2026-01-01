@@ -30,7 +30,9 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/expenses/${year}/${month}`);
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/expenses/${year}/${month}`, { headers });
       setExpenses(response.data);
     } catch (error) {
       console.error('Error fetching expenses:', error);
@@ -61,11 +63,14 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
     e.preventDefault();
     
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       if (editingExpense) {
-        await axios.put(`${API_URL}/expenses/${editingExpense.id}`, formData);
+        await axios.put(`${API_URL}/expenses/${editingExpense.id}`, formData, { headers });
         alert('Expense updated successfully!');
       } else {
-        await axios.post(`${API_URL}/expenses`, formData);
+        await axios.post(`${API_URL}/expenses`, formData, { headers });
         alert('Expense added successfully!');
       }
       
@@ -97,7 +102,9 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
     }
 
     try {
-      await axios.delete(`${API_URL}/expenses/${id}`);
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(`${API_URL}/expenses/${id}`, { headers });
       alert('Expense deleted successfully!');
       fetchExpenses();
       onUpdate();

@@ -16,8 +16,11 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
   const fetchBudgetData = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       // Fetch segment budgets
-      const segmentResponse = await axios.get(`${API_URL}/segment-budgets/${year}/${month}`);
+      const segmentResponse = await axios.get(`${API_URL}/segment-budgets/${year}/${month}`, { headers });
       const budgets = {};
       segmentResponse.data.forEach(item => {
         budgets[item.segment_id] = item.allocated_amount;
@@ -25,7 +28,7 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
       setSegmentBudgets(budgets);
 
       // Fetch total budget
-      const totalResponse = await axios.get(`${API_URL}/budgets/${year}/${month}`);
+      const totalResponse = await axios.get(`${API_URL}/budgets/${year}/${month}`, { headers });
       if (totalResponse.data) {
         setTotalBudget(totalResponse.data.total_budget);
       }
@@ -45,13 +48,16 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
 
   const handleSaveBudgets = async () => {
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       // Save total budget
       if (totalBudget) {
         await axios.post(`${API_URL}/budgets`, {
           year,
           month,
           total_budget: parseFloat(totalBudget)
-        });
+        }, { headers });
       }
 
       // Save segment budgets
@@ -62,7 +68,7 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
           year,
           month,
           allocated_amount: parseFloat(amount)
-        });
+        }, { headers });
       });
 
       await Promise.all(promises);
@@ -79,12 +85,15 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
     const prevYear = month === 1 ? year - 1 : year;
 
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
       await axios.post(`${API_URL}/segment-budgets/copy-previous`, {
         year,
         month,
         prev_year: prevYear,
         prev_month: prevMonth
-      });
+      }, { headers });
       
       alert('Previous month budgets copied successfully!');
       fetchBudgetData();

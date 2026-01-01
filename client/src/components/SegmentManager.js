@@ -17,7 +17,9 @@ function SegmentManager({ segments, onUpdate }) {
     }
 
     try {
-      await axios.post(`${API_URL}/segments`, { name: segmentName.trim() });
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/segments`, { name: segmentName.trim() }, { headers });
       alert('Segment added successfully!');
       setSegmentName('');
       setShowAddForm(false);
@@ -36,9 +38,11 @@ function SegmentManager({ segments, onUpdate }) {
     }
 
     try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
       await axios.put(`${API_URL}/segments/${editingSegment.id}`, { 
         name: segmentName.trim() 
-      });
+      }, { headers });
       alert('Segment renamed successfully!');
       setSegmentName('');
       setEditingSegment(null);
@@ -57,7 +61,9 @@ function SegmentManager({ segments, onUpdate }) {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`${API_URL}/segments/${segment.id}`);
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(`${API_URL}/segments/${segment.id}`, { headers });
       alert('Segment deleted successfully!');
       onUpdate();
     } catch (error) {

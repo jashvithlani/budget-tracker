@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const db = require('./database');
 const fs = require('fs');
+const credentials = require('./credentials');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,46 +17,144 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files from React app in production
 app.use(express.static(path.join(__dirname, 'client/build')));
 
+// ==================== HELPER FUNCTIONS ====================
+
+// Find user by username and password
+function findUser(username, password) {
+  return credentials.users.find(u => u.username === username && u.password === password);
+}
+
+// Extract user ID from token
+function getUserIdFromToken(token) {
+  try {
+    const decoded = Buffer.from(token, 'base64').toString();
+    const [userId] = decoded.split(':');
+    return parseInt(userId);
+  } catch (error) {
+    return null;
+  }
+}
+
+// Middleware to verify token and extract user_id
+function authenticateToken(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.body.token || req.query.token;
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  const userId = getUserIdFromToken(token);
+  if (!userId) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  req.userId = userId;
+  next();
+}
+
+// ==================== AUTHENTICATION API ====================
+
+// Login endpoint
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  const user = findUser(username, password);
+  
+  if (user) {
+    // Generate token with user ID
+    const token = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
+    res.json({ 
+      success: true, 
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName
+      },
+      message: 'Login successful' 
+    });
+  } else {
+    res.status(401).json({ 
+      success: false, 
+      message: 'Invalid username or password' 
+    });
+  }
+});
+
+// Verify token endpoint
+app.post('/api/verify-token', (req, res) => {
+  const { token } = req.body;
+  
+  if (token && token.length > 0) {
+    try {
+      const userId = getUserIdFromToken(token);
+      const user = credentials.users.find(u => u.id === userId);
+      
+      if (user) {
+        res.json({ 
+          valid: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName
+          }
+        });
+      } else {
+        res.json({ valid: false });
+      }
+    } catch (error) {
+      res.json({ valid: false });
+    }
+  } else {
+    res.json({ valid: false });
+  }
+});
+
+// Logout endpoint
+app.post('/api/logout', (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
 // ==================== SEGMENTS API ====================
 
-// Get all segments
-app.get('/api/segments', (req, res) => {
+// Get all segments for current user
+app.get('/api/segments', authenticateToken, (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM segments ORDER BY name').all();
+    const rows = db.prepare('SELECT * FROM segments WHERE user_id = ? ORDER BY name').all(req.userId);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Add a new segment
-app.post('/api/segments', (req, res) => {
+// Add a new segment for current user
+app.post('/api/segments', authenticateToken, (req, res) => {
   try {
     const { name } = req.body;
-    const result = db.prepare('INSERT INTO segments (name) VALUES (?)').run(name);
-    res.json({ id: result.lastInsertRowid, name });
+    const result = db.prepare('INSERT INTO segments (user_id, name) VALUES (?, ?)').run(req.userId, name);
+    res.json({ id: result.lastInsertRowid, user_id: req.userId, name });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Update/Rename a segment
-app.put('/api/segments/:id', (req, res) => {
+// Update/Rename a segment (only if owned by user)
+app.put('/api/segments/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
-    const result = db.prepare('UPDATE segments SET name = ? WHERE id = ?').run(name, id);
+    const result = db.prepare('UPDATE segments SET name = ? WHERE id = ? AND user_id = ?').run(name, id, req.userId);
     res.json({ message: 'Segment updated', changes: result.changes });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Delete a segment
-app.delete('/api/segments/:id', (req, res) => {
+// Delete a segment (only if owned by user)
+app.delete('/api/segments/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    const result = db.prepare('DELETE FROM segments WHERE id = ?').run(id);
+    const result = db.prepare('DELETE FROM segments WHERE id = ? AND user_id = ?').run(id, req.userId);
     res.json({ message: 'Segment deleted', changes: result.changes });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -64,27 +163,27 @@ app.delete('/api/segments/:id', (req, res) => {
 
 // ==================== MONTHLY BUDGETS API ====================
 
-// Get monthly budget
-app.get('/api/budgets/:year/:month', (req, res) => {
+// Get monthly budget for current user
+app.get('/api/budgets/:year/:month', authenticateToken, (req, res) => {
   try {
     const { year, month } = req.params;
-    const row = db.prepare('SELECT * FROM monthly_budgets WHERE year = ? AND month = ?').get(year, month);
+    const row = db.prepare('SELECT * FROM monthly_budgets WHERE user_id = ? AND year = ? AND month = ?').get(req.userId, year, month);
     res.json(row || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Set monthly budget
-app.post('/api/budgets', (req, res) => {
+// Set monthly budget for current user
+app.post('/api/budgets', authenticateToken, (req, res) => {
   try {
     const { year, month, total_budget } = req.body;
-    db.prepare(`INSERT INTO monthly_budgets (year, month, total_budget) 
-                VALUES (?, ?, ?) 
-                ON CONFLICT(year, month) 
+    db.prepare(`INSERT INTO monthly_budgets (user_id, year, month, total_budget) 
+                VALUES (?, ?, ?, ?) 
+                ON CONFLICT(user_id, year, month) 
                 DO UPDATE SET total_budget = excluded.total_budget`)
-      .run(year, month, total_budget);
-    res.json({ year, month, total_budget });
+      .run(req.userId, year, month, total_budget);
+    res.json({ user_id: req.userId, year, month, total_budget });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -92,47 +191,47 @@ app.post('/api/budgets', (req, res) => {
 
 // ==================== SEGMENT BUDGETS API ====================
 
-// Get segment budgets for a specific month
-app.get('/api/segment-budgets/:year/:month', (req, res) => {
+// Get segment budgets for a specific month for current user
+app.get('/api/segment-budgets/:year/:month', authenticateToken, (req, res) => {
   try {
     const { year, month } = req.params;
     const rows = db.prepare(`SELECT sb.*, s.name as segment_name 
                             FROM segment_budgets sb 
                             JOIN segments s ON sb.segment_id = s.id 
-                            WHERE sb.year = ? AND sb.month = ?
+                            WHERE sb.user_id = ? AND sb.year = ? AND sb.month = ?
                             ORDER BY s.name`)
-      .all(year, month);
+      .all(req.userId, year, month);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Set segment budget for a month
-app.post('/api/segment-budgets', (req, res) => {
+// Set segment budget for current user
+app.post('/api/segment-budgets', authenticateToken, (req, res) => {
   try {
     const { segment_id, year, month, allocated_amount } = req.body;
-    db.prepare(`INSERT INTO segment_budgets (segment_id, year, month, allocated_amount) 
-                VALUES (?, ?, ?, ?) 
-                ON CONFLICT(segment_id, year, month) 
+    db.prepare(`INSERT INTO segment_budgets (user_id, segment_id, year, month, allocated_amount) 
+                VALUES (?, ?, ?, ?, ?) 
+                ON CONFLICT(user_id, segment_id, year, month) 
                 DO UPDATE SET allocated_amount = excluded.allocated_amount`)
-      .run(segment_id, year, month, allocated_amount);
-    res.json({ segment_id, year, month, allocated_amount });
+      .run(req.userId, segment_id, year, month, allocated_amount);
+    res.json({ user_id: req.userId, segment_id, year, month, allocated_amount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Copy previous month's segment budgets to current month
-app.post('/api/segment-budgets/copy-previous', (req, res) => {
+// Copy previous month's segment budgets for current user
+app.post('/api/segment-budgets/copy-previous', authenticateToken, (req, res) => {
   try {
     const { year, month, prev_year, prev_month } = req.body;
-    const result = db.prepare(`INSERT INTO segment_budgets (segment_id, year, month, allocated_amount)
-                              SELECT segment_id, ?, ?, allocated_amount
+    const result = db.prepare(`INSERT INTO segment_budgets (user_id, segment_id, year, month, allocated_amount)
+                              SELECT user_id, segment_id, ?, ?, allocated_amount
                               FROM segment_budgets
-                              WHERE year = ? AND month = ?
-                              ON CONFLICT(segment_id, year, month) DO NOTHING`)
-      .run(year, month, prev_year, prev_month);
+                              WHERE user_id = ? AND year = ? AND month = ?
+                              ON CONFLICT(user_id, segment_id, year, month) DO NOTHING`)
+      .run(year, month, req.userId, prev_year, prev_month);
     res.json({ message: 'Previous month budgets copied', changes: result.changes });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -141,71 +240,71 @@ app.post('/api/segment-budgets/copy-previous', (req, res) => {
 
 // ==================== EXPENSES API ====================
 
-// Get expenses for a specific month
-app.get('/api/expenses/:year/:month', (req, res) => {
+// Get expenses for a specific month for current user
+app.get('/api/expenses/:year/:month', authenticateToken, (req, res) => {
   try {
     const { year, month } = req.params;
     const rows = db.prepare(`SELECT e.*, s.name as segment_name 
                             FROM expenses e 
                             JOIN segments s ON e.segment_id = s.id 
-                            WHERE e.year = ? AND e.month = ?
+                            WHERE e.user_id = ? AND e.year = ? AND e.month = ?
                             ORDER BY e.expense_date DESC`)
-      .all(year, month);
+      .all(req.userId, year, month);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get all expenses (for yearly view)
-app.get('/api/expenses/year/:year', (req, res) => {
+// Get all expenses for a year for current user
+app.get('/api/expenses/year/:year', authenticateToken, (req, res) => {
   try {
     const { year } = req.params;
     const rows = db.prepare(`SELECT e.*, s.name as segment_name 
                             FROM expenses e 
                             JOIN segments s ON e.segment_id = s.id 
-                            WHERE e.year = ?
+                            WHERE e.user_id = ? AND e.year = ?
                             ORDER BY e.expense_date DESC`)
-      .all(year);
+      .all(req.userId, year);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Add a new expense
-app.post('/api/expenses', (req, res) => {
+// Add a new expense for current user
+app.post('/api/expenses', authenticateToken, (req, res) => {
   try {
     const { segment_id, year, month, amount, description, expense_date } = req.body;
-    const result = db.prepare(`INSERT INTO expenses (segment_id, year, month, amount, description, expense_date) 
-                              VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(segment_id, year, month, amount, description, expense_date);
-    res.json({ id: result.lastInsertRowid, segment_id, year, month, amount, description, expense_date });
+    const result = db.prepare(`INSERT INTO expenses (user_id, segment_id, year, month, amount, description, expense_date) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(req.userId, segment_id, year, month, amount, description, expense_date);
+    res.json({ id: result.lastInsertRowid, user_id: req.userId, segment_id, year, month, amount, description, expense_date });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Update an expense
-app.put('/api/expenses/:id', (req, res) => {
+// Update an expense (only if owned by user)
+app.put('/api/expenses/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
     const { segment_id, year, month, amount, description, expense_date } = req.body;
     const result = db.prepare(`UPDATE expenses 
                               SET segment_id = ?, year = ?, month = ?, amount = ?, description = ?, expense_date = ?
-                              WHERE id = ?`)
-      .run(segment_id, year, month, amount, description, expense_date, id);
+                              WHERE id = ? AND user_id = ?`)
+      .run(segment_id, year, month, amount, description, expense_date, id, req.userId);
     res.json({ message: 'Expense updated', changes: result.changes });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Delete an expense
-app.delete('/api/expenses/:id', (req, res) => {
+// Delete an expense (only if owned by user)
+app.delete('/api/expenses/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    const result = db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+    const result = db.prepare('DELETE FROM expenses WHERE id = ? AND user_id = ?').run(id, req.userId);
     res.json({ message: 'Expense deleted', changes: result.changes });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -214,12 +313,11 @@ app.delete('/api/expenses/:id', (req, res) => {
 
 // ==================== DASHBOARD API ====================
 
-// Get dashboard data for a specific month
-app.get('/api/dashboard/month/:year/:month', (req, res) => {
+// Get dashboard data for a specific month for current user
+app.get('/api/dashboard/month/:year/:month', authenticateToken, (req, res) => {
   try {
     const { year, month } = req.params;
     
-    // Get segment-wise data
     const rows = db.prepare(`SELECT 
                               s.id,
                               s.name,
@@ -227,13 +325,13 @@ app.get('/api/dashboard/month/:year/:month', (req, res) => {
                               COALESCE(SUM(e.amount), 0) as spent,
                               COALESCE(sb.allocated_amount, 0) - COALESCE(SUM(e.amount), 0) as remaining
                             FROM segments s
-                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.month = ?
-                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.month = ?
+                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.month = ? AND sb.user_id = ?
+                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.month = ? AND e.user_id = ?
+                            WHERE s.user_id = ?
                             GROUP BY s.id, s.name, sb.allocated_amount
                             ORDER BY s.name`)
-      .all(year, month, year, month);
+      .all(year, month, req.userId, year, month, req.userId, req.userId);
     
-    // Calculate totals
     const totalBudget = rows.reduce((sum, row) => sum + parseFloat(row.budget || 0), 0);
     const totalSpent = rows.reduce((sum, row) => sum + parseFloat(row.spent || 0), 0);
     const totalRemaining = totalBudget - totalSpent;
@@ -251,8 +349,8 @@ app.get('/api/dashboard/month/:year/:month', (req, res) => {
   }
 });
 
-// Get dashboard data for a specific year
-app.get('/api/dashboard/year/:year', (req, res) => {
+// Get dashboard data for a specific year for current user
+app.get('/api/dashboard/year/:year', authenticateToken, (req, res) => {
   try {
     const { year } = req.params;
     
@@ -263,11 +361,12 @@ app.get('/api/dashboard/year/:year', (req, res) => {
                               COALESCE(SUM(e.amount), 0) as spent,
                               COALESCE(SUM(sb.allocated_amount), 0) - COALESCE(SUM(e.amount), 0) as remaining
                             FROM segments s
-                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ?
-                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ?
+                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.user_id = ?
+                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.user_id = ?
+                            WHERE s.user_id = ?
                             GROUP BY s.id, s.name
                             ORDER BY s.name`)
-      .all(year, year);
+      .all(year, req.userId, year, req.userId, req.userId);
     
     const totalBudget = rows.reduce((sum, row) => sum + parseFloat(row.budget || 0), 0);
     const totalSpent = rows.reduce((sum, row) => sum + parseFloat(row.spent || 0), 0);
@@ -286,30 +385,8 @@ app.get('/api/dashboard/year/:year', (req, res) => {
   }
 });
 
-// Get monthly breakdown for a year
-app.get('/api/dashboard/year/:year/monthly', (req, res) => {
-  try {
-    const { year } = req.params;
-    
-    const rows = db.prepare(`SELECT 
-                              e.month,
-                              COALESCE(SUM(sb.allocated_amount), 0) as budget,
-                              COALESCE(SUM(e.amount), 0) as spent
-                            FROM (SELECT DISTINCT month FROM expenses WHERE year = ?) months
-                            LEFT JOIN segment_budgets sb ON sb.year = ? AND sb.month = months.month
-                            LEFT JOIN expenses e ON e.year = ? AND e.month = months.month
-                            GROUP BY e.month
-                            ORDER BY e.month`)
-      .all(year, year, year);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ==================== CSV EXPORT API ====================
 
-// Helper function to convert array of objects to CSV
 function arrayToCSV(data, headers) {
   if (!data || data.length === 0) return '';
   
@@ -318,7 +395,6 @@ function arrayToCSV(data, headers) {
     return headers.map(h => {
       const value = row[h.id];
       if (value === null || value === undefined) return '';
-      // Escape values containing commas or quotes
       const stringValue = String(value);
       if (stringValue.includes(',') || stringValue.includes('"')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
@@ -330,8 +406,8 @@ function arrayToCSV(data, headers) {
   return [csvHeaders, ...csvRows].join('\n');
 }
 
-// Export monthly report to CSV
-app.get('/api/export/month/:year/:month', (req, res) => {
+// Export monthly report for current user
+app.get('/api/export/month/:year/:month', authenticateToken, (req, res) => {
   try {
     const { year, month } = req.params;
     const filename = `budget_report_${year}_${month.padStart(2, '0')}.csv`;
@@ -343,10 +419,11 @@ app.get('/api/export/month/:year/:month', (req, res) => {
                               e.description,
                               e.expense_date
                             FROM segments s
-                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.month = ?
-                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.month = ?
+                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.month = ? AND sb.user_id = ?
+                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.month = ? AND e.user_id = ?
+                            WHERE s.user_id = ?
                             ORDER BY s.name, e.expense_date`)
-      .all(year, month, year, month);
+      .all(year, month, req.userId, year, month, req.userId, req.userId);
     
     const headers = [
       { id: 'segment', title: 'Segment' },
@@ -366,8 +443,8 @@ app.get('/api/export/month/:year/:month', (req, res) => {
   }
 });
 
-// Export yearly report to CSV
-app.get('/api/export/year/:year', (req, res) => {
+// Export yearly report for current user
+app.get('/api/export/year/:year', authenticateToken, (req, res) => {
   try {
     const { year } = req.params;
     const filename = `budget_report_${year}.csv`;
@@ -381,10 +458,10 @@ app.get('/api/export/year/:year', (req, res) => {
                               COALESCE(sb.allocated_amount, 0) as budget
                             FROM expenses e
                             JOIN segments s ON e.segment_id = s.id
-                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = e.year AND sb.month = e.month
-                            WHERE e.year = ?
+                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = e.year AND sb.month = e.month AND sb.user_id = e.user_id
+                            WHERE e.year = ? AND e.user_id = ?
                             ORDER BY e.month, s.name, e.expense_date`)
-      .all(year);
+      .all(year, req.userId);
     
     const headers = [
       { id: 'segment', title: 'Segment' },
@@ -414,4 +491,5 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`API available at http://localhost:${PORT}/api`);
+  console.log(`Multi-user support enabled - ${credentials.users.length} users configured`);
 });
