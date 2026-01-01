@@ -4,14 +4,20 @@ import './Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
-function Dashboard({ year, month, refreshTrigger }) {
+function Dashboard({ year, month, refreshTrigger, onAddExpenseClick }) {
   const [monthlyData, setMonthlyData] = useState(null);
   const [yearlyData, setYearlyData] = useState(null);
   const [viewType, setViewType] = useState('monthly');
   const [loading, setLoading] = useState(true);
+  const [expandedSegments, setExpandedSegments] = useState({});
+  const [segmentExpenses, setSegmentExpenses] = useState({});
+  const [loadingExpenses, setLoadingExpenses] = useState({});
 
   useEffect(() => {
     fetchDashboardData();
+    // Reset expanded segments when view changes
+    setExpandedSegments({});
+    setSegmentExpenses({});
   }, [year, month, refreshTrigger, viewType]);
 
   const fetchDashboardData = async () => {
@@ -31,6 +37,42 @@ function Dashboard({ year, month, refreshTrigger }) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSegmentExpenses = async (segmentId) => {
+    setLoadingExpenses(prev => ({ ...prev, [segmentId]: true }));
+    try {
+      const token = localStorage.getItem('budgetToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      let response;
+      if (viewType === 'monthly') {
+        response = await axios.get(`${API_URL}/expenses/${year}/${month}`, { headers });
+        // Filter expenses for this segment
+        const filtered = response.data.filter(exp => exp.segment_id === segmentId);
+        setSegmentExpenses(prev => ({ ...prev, [segmentId]: filtered }));
+      } else {
+        // For yearly view, get all expenses for the year
+        response = await axios.get(`${API_URL}/expenses/year/${year}`, { headers });
+        // Filter expenses for this segment
+        const filtered = response.data.filter(exp => exp.segment_id === segmentId);
+        setSegmentExpenses(prev => ({ ...prev, [segmentId]: filtered }));
+      }
+    } catch (error) {
+      console.error('Error fetching segment expenses:', error);
+    } finally {
+      setLoadingExpenses(prev => ({ ...prev, [segmentId]: false }));
+    }
+  };
+
+  const toggleSegmentExpand = (segmentId) => {
+    const isExpanding = !expandedSegments[segmentId];
+    setExpandedSegments(prev => ({ ...prev, [segmentId]: isExpanding }));
+    
+    // Fetch expenses if expanding and not already loaded
+    if (isExpanding && !segmentExpenses[segmentId]) {
+      fetchSegmentExpenses(segmentId);
     }
   };
 
@@ -55,6 +97,14 @@ function Dashboard({ year, month, refreshTrigger }) {
     }).format(amount);
   };
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
   if (loading) {
     return <div className="loading">Loading dashboard data...</div>;
   }
@@ -73,19 +123,28 @@ function Dashboard({ year, month, refreshTrigger }) {
             ? `${monthNames[month - 1]} ${year} - Overview`
             : `${year} - Annual Overview`}
         </h2>
-        <div className="view-toggle">
+        <div className="dashboard-actions">
           <button 
-            className={viewType === 'monthly' ? 'active' : ''}
-            onClick={() => setViewType('monthly')}
+            onClick={onAddExpenseClick}
+            className="add-expense-btn"
+            title="Add a new expense"
           >
-            Monthly
+            ➕ Add Expense
           </button>
-          <button 
-            className={viewType === 'yearly' ? 'active' : ''}
-            onClick={() => setViewType('yearly')}
-          >
-            Yearly
-          </button>
+          <div className="view-toggle">
+            <button 
+              className={viewType === 'monthly' ? 'active' : ''}
+              onClick={() => setViewType('monthly')}
+            >
+              Monthly
+            </button>
+            <button 
+              className={viewType === 'yearly' ? 'active' : ''}
+              onClick={() => setViewType('yearly')}
+            >
+              Yearly
+            </button>
+          </div>
         </div>
       </div>
 
@@ -118,18 +177,27 @@ function Dashboard({ year, month, refreshTrigger }) {
       </div>
 
       <div className="segments-breakdown">
-        <h3>Segment-wise Breakdown</h3>
+        <h3>Segment-wise Breakdown <span className="hint">(Click to expand)</span></h3>
         <div className="segments-list">
           {data.segments.map((segment) => {
             const percentage = segment.budget > 0 
               ? Math.min((segment.spent / segment.budget) * 100, 100)
               : 0;
             const color = getProgressColor(segment.spent, segment.budget);
+            const isExpanded = expandedSegments[segment.id];
+            const expenses = segmentExpenses[segment.id] || [];
+            const isLoadingExpenses = loadingExpenses[segment.id];
 
             return (
-              <div key={segment.id} className="segment-item">
-                <div className="segment-header">
-                  <h4>{segment.name}</h4>
+              <div key={segment.id} className={`segment-item ${isExpanded ? 'expanded' : ''}`}>
+                <div 
+                  className="segment-header clickable" 
+                  onClick={() => toggleSegmentExpand(segment.id)}
+                >
+                  <div className="segment-title">
+                    <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                    <h4>{segment.name}</h4>
+                  </div>
                   <div className="segment-amounts">
                     <span className="spent">{formatCurrency(segment.spent)}</span>
                     <span className="separator">/</span>
@@ -153,6 +221,50 @@ function Dashboard({ year, month, refreshTrigger }) {
                     {segment.budget > 0 ? `${((segment.spent / segment.budget) * 100).toFixed(1)}%` : '0%'}
                   </span>
                 </div>
+
+                {/* Expanded Section - Show Expenses */}
+                {isExpanded && (
+                  <div className="segment-expenses">
+                    {isLoadingExpenses ? (
+                      <div className="expenses-loading">Loading expenses...</div>
+                    ) : expenses.length === 0 ? (
+                      <div className="no-expenses-message">
+                        No expenses recorded for this segment in this {viewType === 'monthly' ? 'month' : 'year'}.
+                      </div>
+                    ) : (
+                      <div className="expenses-table-wrapper">
+                        <table className="expenses-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              {viewType === 'yearly' && <th>Month</th>}
+                              <th>Description</th>
+                              <th>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {expenses.map(expense => (
+                              <tr key={expense.id}>
+                                <td>{formatDate(expense.expense_date)}</td>
+                                {viewType === 'yearly' && (
+                                  <td>{monthNames[expense.month - 1]}</td>
+                                )}
+                                <td>{expense.description || '-'}</td>
+                                <td className="expense-amount">{formatCurrency(expense.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="total-row">
+                              <td colSpan={viewType === 'yearly' ? 3 : 2}><strong>Total</strong></td>
+                              <td className="expense-amount"><strong>{formatCurrency(segment.spent)}</strong></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

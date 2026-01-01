@@ -220,6 +220,7 @@ function App() {
             year={selectedYear} 
             month={selectedMonth}
             refreshTrigger={refreshTrigger}
+            onAddExpenseClick={() => setCurrentView('expenses')}
           />
         )}
         {currentView === 'budget' && (
