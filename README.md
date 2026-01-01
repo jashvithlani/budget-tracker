@@ -1,9 +1,11 @@
 # Budget Tracker Web Application
 
-A comprehensive budget tracking application with local database storage, featuring monthly/yearly budget allocation, segment-wise expense tracking, and CSV export functionality.
+A comprehensive budget tracking application with PostgreSQL database, featuring multi-user support, monthly/yearly budget allocation, segment-wise expense tracking, and CSV export functionality.
 
 ## Features
 
+- ✅ **Multi-user support** with secure login
+- ✅ **Persistent data storage** with PostgreSQL
 - ✅ Allocate monthly budgets
 - ✅ Segment-wise budget allocation per month
 - ✅ Budget defaults carry over from previous month
@@ -11,26 +13,45 @@ A comprehensive budget tracking application with local database storage, featuri
 - ✅ Add expenses for future months
 - ✅ Interactive dashboard with monthly and yearly views
 - ✅ Export to CSV (monthly and yearly reports)
-- ✅ Local SQLite database (no external dependencies)
+- ✅ Custom segments (add, rename, delete)
+- ✅ Toast notifications and confirmation modals
 
-## Installation
+## Quick Start
 
-1. Install backend dependencies:
+### Prerequisites
+- Node.js 18.x or higher
+- PostgreSQL 12 or higher
+
+### Installation
+
+1. **Clone and install dependencies**:
 ```bash
 npm install
+cd client && npm install && cd ..
 ```
 
-2. Install frontend dependencies:
+2. **Set up PostgreSQL** (see [LOCAL_POSTGRES_SETUP.md](LOCAL_POSTGRES_SETUP.md) for details):
 ```bash
-cd client
-npm install
-cd ..
+# Create database
+psql postgres
+CREATE DATABASE budget_tracker;
+\q
 ```
 
-Or use the convenience script:
+3. **Configure environment**:
 ```bash
-npm run install-all
+cp .env.example .env
+# Edit .env with your DATABASE_URL
 ```
+
+4. **Start the application**:
+```bash
+npm start
+```
+
+For detailed setup instructions, see:
+- **Local Development**: [LOCAL_POSTGRES_SETUP.md](LOCAL_POSTGRES_SETUP.md)
+- **Deploy to Render**: [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md)
 
 ## Running the Application
 
@@ -65,22 +86,33 @@ The application will be available at `http://localhost:3001`.
 ## Technology Stack
 
 - **Backend**: Node.js + Express
-- **Database**: SQLite (local)
+- **Database**: PostgreSQL
 - **Frontend**: React
+- **Authentication**: Token-based with multi-user support
 - **Styling**: Modern CSS with responsive design
 
 ## Database Schema
 
-- **segments**: Budget categories (Food, Transportation, etc.)
-- **monthly_budgets**: Total monthly budget allocation
-- **segment_budgets**: Budget allocation per segment per month
-- **expenses**: Individual expense entries
+- **segments**: Budget categories per user (Food, Transportation, etc.)
+- **monthly_budgets**: Total monthly budget allocation per user
+- **segment_budgets**: Budget allocation per segment per month per user
+- **expenses**: Individual expense entries per user
+
+All tables include `user_id` for multi-user data isolation.
 
 ## API Endpoints
 
+All endpoints (except login) require authentication via Bearer token.
+
+### Authentication
+- `POST /api/login` - User login
+- `POST /api/verify-token` - Verify authentication token
+- `POST /api/logout` - User logout
+
 ### Segments
-- `GET /api/segments` - Get all segments
+- `GET /api/segments` - Get all segments (user-specific)
 - `POST /api/segments` - Create new segment
+- `PUT /api/segments/:id` - Rename segment
 - `DELETE /api/segments/:id` - Delete segment
 
 ### Budgets
@@ -104,6 +136,39 @@ The application will be available at `http://localhost:3001`.
 ### Export
 - `GET /api/export/month/:year/:month` - Export monthly CSV report
 - `GET /api/export/year/:year` - Export yearly CSV report
+
+## Default Users
+
+Two users are pre-configured (see `credentials.js`):
+- **User 1**: jashvithlani / Tokyo@1234
+- **User 2**: dskantaria / Dhaval@1234
+
+Edit `credentials.js` to add/modify users.
+
+## Documentation
+
+- 📖 [PostgreSQL Setup for Render](POSTGRESQL_SETUP.md)
+- 💻 [Local PostgreSQL Development](LOCAL_POSTGRES_SETUP.md)
+- 🚀 [Quick Start Guide](QUICKSTART.md)
+- 📦 [Installation Guide](INSTALLATION.md)
+
+## Why PostgreSQL?
+
+✅ **Persistent Data**: Data survives deployments (unlike SQLite on Render)  
+✅ **Production Ready**: Better performance and reliability  
+✅ **Free Options**: Render offers 90-day free trial, or use free services like Supabase  
+Supabase password : Tokyo@123456789012
+
+## Deployment
+
+This app is optimized for deployment on Render.com:
+1. Push code to GitHub
+2. Create PostgreSQL database on Render
+3. Create Web Service on Render
+4. Set `DATABASE_URL` environment variable
+5. Deploy!
+
+See [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md) for detailed instructions.
 
 ## License
 
