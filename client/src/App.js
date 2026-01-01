@@ -6,6 +6,7 @@ import ExpenseManager from './components/ExpenseManager';
 import SegmentManager from './components/SegmentManager';
 import Login from './components/Login';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from './components/ConfirmModal';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -114,9 +115,11 @@ function App() {
   // Show login if not authenticated
   if (!isAuthenticated) {
     return (
-      <ToastProvider>
-        <Login onLoginSuccess={handleLoginSuccess} />
-      </ToastProvider>
+      <ConfirmProvider>
+        <ToastProvider>
+          <Login onLoginSuccess={handleLoginSuccess} />
+        </ToastProvider>
+      </ConfirmProvider>
     );
   }
 
@@ -142,8 +145,9 @@ function App() {
   };
 
   return (
-    <ToastProvider>
-      <div className="App">
+    <ConfirmProvider>
+      <ToastProvider>
+        <div className="App">
       <header className="app-header">
         <div>
           <h1>💰 Budget Tracker</h1>
@@ -242,7 +246,8 @@ function App() {
         )}
       </main>
       </div>
-    </ToastProvider>
+      </ToastProvider>
+    </ConfirmProvider>
   );
 }
 

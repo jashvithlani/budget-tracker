@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useToast } from './Toast';
+import { useConfirm } from './ConfirmModal';
 import './SegmentManager.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function SegmentManager({ segments, onUpdate }) {
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSegment, setEditingSegment] = useState(null);
   const [segmentName, setSegmentName] = useState('');
@@ -56,11 +58,15 @@ function SegmentManager({ segments, onUpdate }) {
   };
 
   const handleDeleteSegment = async (segment) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${segment.name}"?\n\nThis will also delete all associated budgets and expenses for this segment.`
-    );
+    const confirmed = await confirm({
+      title: 'Delete Segment',
+      message: `Are you sure you want to delete "${segment.name}"?\n\nThis will also delete all associated budgets and expenses for this segment.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
 
-    if (!confirmDelete) return;
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('budgetToken');

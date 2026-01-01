@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useToast } from './Toast';
+import { useConfirm } from './ConfirmModal';
 import './ExpenseManager.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function ExpenseManager({ year, month, segments, onUpdate }) {
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -99,9 +101,15 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this expense?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Expense',
+      message: 'Are you sure you want to delete this expense?\nThis action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+
+    if (!confirmed) return;
 
     try {
       const token = localStorage.getItem('budgetToken');

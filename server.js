@@ -357,14 +357,23 @@ app.get('/api/dashboard/year/:year', authenticateToken, (req, res) => {
     const rows = db.prepare(`SELECT 
                               s.id,
                               s.name,
-                              COALESCE(SUM(sb.allocated_amount), 0) as budget,
-                              COALESCE(SUM(e.amount), 0) as spent,
-                              COALESCE(SUM(sb.allocated_amount), 0) - COALESCE(SUM(e.amount), 0) as remaining
+                              COALESCE(budget_sum.total_budget, 0) as budget,
+                              COALESCE(expense_sum.total_spent, 0) as spent,
+                              COALESCE(budget_sum.total_budget, 0) - COALESCE(expense_sum.total_spent, 0) as remaining
                             FROM segments s
-                            LEFT JOIN segment_budgets sb ON s.id = sb.segment_id AND sb.year = ? AND sb.user_id = ?
-                            LEFT JOIN expenses e ON s.id = e.segment_id AND e.year = ? AND e.user_id = ?
+                            LEFT JOIN (
+                              SELECT segment_id, SUM(allocated_amount) as total_budget
+                              FROM segment_budgets
+                              WHERE year = ? AND user_id = ?
+                              GROUP BY segment_id
+                            ) budget_sum ON s.id = budget_sum.segment_id
+                            LEFT JOIN (
+                              SELECT segment_id, SUM(amount) as total_spent
+                              FROM expenses
+                              WHERE year = ? AND user_id = ?
+                              GROUP BY segment_id
+                            ) expense_sum ON s.id = expense_sum.segment_id
                             WHERE s.user_id = ?
-                            GROUP BY s.id, s.name
                             ORDER BY s.name`)
       .all(year, req.userId, year, req.userId, req.userId);
     
