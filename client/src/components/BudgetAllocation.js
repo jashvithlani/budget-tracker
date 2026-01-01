@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from './Toast';
 import './BudgetAllocation.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function BudgetAllocation({ year, month, segments, onUpdate }) {
+  const { showToast } = useToast();
   const [segmentBudgets, setSegmentBudgets] = useState({});
   const [totalBudget, setTotalBudget] = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,11 +74,11 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
       });
 
       await Promise.all(promises);
-      alert('Budgets saved successfully!');
+      showToast('Budgets saved successfully!', 'success');
       onUpdate();
     } catch (error) {
       console.error('Error saving budgets:', error);
-      alert('Error saving budgets');
+      showToast('Error saving budgets', 'error');
     }
   };
 
@@ -95,12 +97,12 @@ function BudgetAllocation({ year, month, segments, onUpdate }) {
         prev_month: prevMonth
       }, { headers });
       
-      alert('Previous month budgets copied successfully!');
+      showToast('Previous month budgets copied successfully!', 'success');
       fetchBudgetData();
       onUpdate();
     } catch (error) {
       console.error('Error copying budgets:', error);
-      alert('Error copying previous month budgets');
+      showToast('Error copying previous month budgets', 'error');
     }
   };
 

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from './Toast';
 import './ExpenseManager.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function ExpenseManager({ year, month, segments, onUpdate }) {
+  const { showToast } = useToast();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -68,10 +70,10 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
       
       if (editingExpense) {
         await axios.put(`${API_URL}/expenses/${editingExpense.id}`, formData, { headers });
-        alert('Expense updated successfully!');
+        showToast('Expense updated successfully!', 'success');
       } else {
         await axios.post(`${API_URL}/expenses`, formData, { headers });
-        alert('Expense added successfully!');
+        showToast('Expense added successfully!', 'success');
       }
       
       resetForm();
@@ -79,7 +81,7 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
       onUpdate();
     } catch (error) {
       console.error('Error saving expense:', error);
-      alert('Error saving expense');
+      showToast('Error saving expense', 'error');
     }
   };
 
@@ -105,12 +107,12 @@ function ExpenseManager({ year, month, segments, onUpdate }) {
       const token = localStorage.getItem('budgetToken');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(`${API_URL}/expenses/${id}`, { headers });
-      alert('Expense deleted successfully!');
+      showToast('Expense deleted successfully!', 'success');
       fetchExpenses();
       onUpdate();
     } catch (error) {
       console.error('Error deleting expense:', error);
-      alert('Error deleting expense');
+      showToast('Error deleting expense', 'error');
     }
   };
 

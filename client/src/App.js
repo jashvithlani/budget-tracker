@@ -5,6 +5,7 @@ import BudgetAllocation from './components/BudgetAllocation';
 import ExpenseManager from './components/ExpenseManager';
 import SegmentManager from './components/SegmentManager';
 import Login from './components/Login';
+import { ToastProvider } from './components/Toast';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -112,7 +113,11 @@ function App() {
 
   // Show login if not authenticated
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <ToastProvider>
+        <Login onLoginSuccess={handleLoginSuccess} />
+      </ToastProvider>
+    );
   }
 
   const monthNames = [
@@ -137,7 +142,8 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <ToastProvider>
+      <div className="App">
       <header className="app-header">
         <div>
           <h1>💰 Budget Tracker</h1>
@@ -235,7 +241,8 @@ function App() {
           />
         )}
       </main>
-    </div>
+      </div>
+    </ToastProvider>
   );
 }
 

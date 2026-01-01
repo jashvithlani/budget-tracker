@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useToast } from './Toast';
 import './SegmentManager.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function SegmentManager({ segments, onUpdate }) {
+  const { showToast } = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSegment, setEditingSegment] = useState(null);
   const [segmentName, setSegmentName] = useState('');
@@ -12,7 +14,7 @@ function SegmentManager({ segments, onUpdate }) {
   const handleAddSegment = async (e) => {
     e.preventDefault();
     if (!segmentName.trim()) {
-      alert('Please enter a segment name');
+      showToast('Please enter a segment name', 'warning');
       return;
     }
 
@@ -20,20 +22,20 @@ function SegmentManager({ segments, onUpdate }) {
       const token = localStorage.getItem('budgetToken');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`${API_URL}/segments`, { name: segmentName.trim() }, { headers });
-      alert('Segment added successfully!');
+      showToast('Segment added successfully!', 'success');
       setSegmentName('');
       setShowAddForm(false);
       onUpdate();
     } catch (error) {
       console.error('Error adding segment:', error);
-      alert('Error adding segment. It might already exist.');
+      showToast('Error adding segment. It might already exist.', 'error');
     }
   };
 
   const handleRenameSegment = async (e) => {
     e.preventDefault();
     if (!segmentName.trim()) {
-      alert('Please enter a segment name');
+      showToast('Please enter a segment name', 'warning');
       return;
     }
 
@@ -43,13 +45,13 @@ function SegmentManager({ segments, onUpdate }) {
       await axios.put(`${API_URL}/segments/${editingSegment.id}`, { 
         name: segmentName.trim() 
       }, { headers });
-      alert('Segment renamed successfully!');
+      showToast('Segment renamed successfully!', 'success');
       setSegmentName('');
       setEditingSegment(null);
       onUpdate();
     } catch (error) {
       console.error('Error renaming segment:', error);
-      alert('Error renaming segment. The name might already exist.');
+      showToast('Error renaming segment. The name might already exist.', 'error');
     }
   };
 
@@ -64,11 +66,11 @@ function SegmentManager({ segments, onUpdate }) {
       const token = localStorage.getItem('budgetToken');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(`${API_URL}/segments/${segment.id}`, { headers });
-      alert('Segment deleted successfully!');
+      showToast('Segment deleted successfully!', 'success');
       onUpdate();
     } catch (error) {
       console.error('Error deleting segment:', error);
-      alert('Error deleting segment.');
+      showToast('Error deleting segment', 'error');
     }
   };
 
