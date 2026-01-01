@@ -1,0 +1,127 @@
+.App {
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.app-header {
+  background: white;
+  padding: 20px 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  color: #667eea;
+  font-size: 2rem;
+  margin: 0;
+}
+
+.header-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.month-select,
+.year-input {
+  padding: 10px 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.month-select:hover,
+.year-input:hover,
+.month-select:focus,
+.year-input:focus {
+  border-color: #667eea;
+  outline: none;
+}
+
+.year-input {
+  width: 100px;
+}
+
+.app-nav {
+  background: white;
+  padding: 15px 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.app-nav button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #333;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.app-nav button:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.app-nav button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.export-buttons {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.export-btn {
+  background: #4caf50 !important;
+  color: white !important;
+}
+
+.export-btn:hover {
+  background: #45a049 !important;
+}
+
+.app-main {
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-height: 500px;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .app-nav {
+    flex-direction: column;
+  }
+
+  .export-buttons {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .export-buttons button {
+    flex: 1;
+  }
+}
