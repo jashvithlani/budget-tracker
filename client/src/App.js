@@ -6,7 +6,7 @@ import ExpenseManager from './components/ExpenseManager';
 import SegmentManager from './components/SegmentManager';
 import './App.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
